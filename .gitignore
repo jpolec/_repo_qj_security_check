@@ -6,3 +6,7 @@ _shared/
 .venv/
 __pycache__/
 *.pyc
+
+reports/
+reports
+reports/*
