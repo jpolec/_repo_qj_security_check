@@ -822,7 +822,8 @@ check_server() {
     log_verbose "SSH command: ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new $ssh_host"
     
     # Execute remote script (stdout=data to file, stderr=progress to console)
-    if printf '%s' "$REMOTE_CHECK_SCRIPT" | ssh -T -o ConnectTimeout=30 -o StrictHostKeyChecking=accept-new "$ssh_host" "bash" > "$output_file"; then
+    # Prefix stderr lines with server name for progress visibility
+    if printf '%s' "$REMOTE_CHECK_SCRIPT" | ssh -T -o ConnectTimeout=30 -o StrictHostKeyChecking=accept-new "$ssh_host" "bash" > "$output_file" 2> >(sed "s/^>>> Checking: /[$server] /" >&2); then
         log_success "Server ${server} - check completed"
         
         # Verbose output - show what was checked

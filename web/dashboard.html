@@ -167,6 +167,10 @@
       border-radius: 4px
     }
 
+    [data-theme="dark"] .logo-left img {
+      filter: invert(1)
+    }
+
     .logo-left h1 {
       font-size: 14px;
       font-weight: 700;
@@ -296,6 +300,12 @@
 
     .history-item:hover {
       background: var(--bg3)
+    }
+
+    .history-item.active {
+      background: var(--bg3);
+      color: var(--accent);
+      border-left: 2px solid var(--accent)
     }
 
     /* Header */
@@ -1004,7 +1014,9 @@
         </div>
 
         <!-- Servers -->
-        <div class="section-title">Servers</div>
+        <div class="section-title" style="display:flex;align-items:center;justify-content:space-between">Servers
+          <span id="activeReport" style="font-size:10px;color:var(--fg3);font-weight:400"></span>
+        </div>
         <div class="server-table" id="serverTable">
           <div class="srv-row srv-header">
             <span></span><span>Server</span><span class="val">Critical</span><span class="val">Updates</span><span
@@ -1020,7 +1032,7 @@
       </div>
     </main>
 
-    <!-- Right Panel: Fix Instructions + Terminal -->
+    <!-- Right Panel: Fix Instructions -->
     <aside class="right-panel" id="rightPanel">
       <div class="panel" style="flex:1">
         <div class="panel-hdr" style="display:flex;align-items:center">Fix Instructions
@@ -1028,21 +1040,8 @@
             title="Expand / collapse panel">◀</button>
         </div>
         <div id="fixInstructions" class="panel-body"
-          style="display:block;padding:10px 14px;font-size:11px;color:var(--fg2);overflow-y:auto;max-height:40vh">
+          style="display:block;padding:10px 14px;font-size:11px;color:var(--fg2);overflow-y:auto;max-height:80vh">
           <p style="color:var(--fg3)">Click a server to see fix instructions.</p>
-        </div>
-      </div>
-      <div class="panel" style="flex:1;display:flex;flex-direction:column">
-        <div class="panel-hdr">Terminal
-          <div id="sshButtons" style="display:inline;margin-left:8px"></div>
-        </div>
-        <div id="shellPanel" style="display:flex;flex-direction:column;flex:1">
-          <div class="shell-out" id="shellOutput" style="flex:1;min-height:100px;max-height:none">Ready.
-          </div>
-          <div class="shell-in">
-            <span class="shell-prompt">$</span>
-            <input class="shell-input" id="shellInput" type="text" placeholder="Enter command..." autocomplete="off">
-          </div>
         </div>
       </div>
     </aside>
@@ -1050,7 +1049,7 @@
 
   <script>
     const API = '';
-    let currentData = null, pollTimer = null;
+    let currentData = null, pollTimer = null, activeReportName = '';
 
     async function api(path, opts) { const r = await fetch(API + path, opts); return r.json() }
 
@@ -1096,32 +1095,63 @@
     function pollScan(t) {
       const b = document.getElementById('statusBadge'); b.style.display = 'inline-block'; b.className = 'badge scanning'; b.textContent = 'Scanning...';
       let seenLines = 0;
-      pollTimer = setInterval(async () => {
-        const s = await api('/api/scan/status?since=' + seenLines);
-        if (s.log && s.log.length) {
-          const out = document.getElementById('scanLogOutput');
-          s.log.forEach(l => out.textContent += l + '\n');
-          out.scrollTop = out.scrollHeight;
-          seenLines = s.log_lines;
+      async function tick() {
+        try {
+          const s = await api('/api/scan/status?since=' + seenLines);
+          if (s.log && s.log.length) {
+            const out = document.getElementById('scanLogOutput');
+            s.log.forEach(l => out.textContent += l + '\n');
+            out.scrollTop = out.scrollHeight;
+            seenLines = s.log_lines;
+          }
+          if (!s.running) {
+            b.style.display = 'none';
+            document.getElementById('runScanBtn').disabled = false; document.getElementById('runScanBtn').innerHTML = '▶ Run Scan';
+            document.getElementById('scanLogPanel').querySelector('.panel-hdr').innerHTML = '✓ Scan Complete <span style="margin-left:auto;font-size:10px" id="scanLogChev">▴</span>';
+            document.getElementById('scanSpinner').style.display = 'none';
+            document.getElementById('stopScanBtn').style.display = 'none';
+            // Load results after short delay
+            setTimeout(() => onScanComplete(t), 1500);
+            return; // stop polling
+          }
+        } catch(e) { console.error('Poll error:', e) }
+        pollTimer = setTimeout(tick, 2000);
+      }
+      pollTimer = setTimeout(tick, 1500);
+    }
+    async function onScanComplete(t) {
+      console.log('onScanComplete:', t);
+      try {
+        const d = await api('/api/results?type=' + t);
+        console.log('Results:', d);
+        if (d && !d.error && d.servers) {
+          currentData = d;
+          activeReportName = d.report_file || '';
+          setActiveReport(activeReportName);
+          render(d);
+          await loadHistory();
+          return;
         }
-        if (!s.running) {
-          clearInterval(pollTimer); b.style.display = 'none';
-          document.getElementById('runScanBtn').disabled = false; document.getElementById('runScanBtn').innerHTML = '▶ Run Scan';
-          document.getElementById('scanLogPanel').querySelector('.panel-hdr').innerHTML = '✓ Scan Complete <span style="margin-left:auto;font-size:10px" id="scanLogChev">▴</span>';
-          document.getElementById('scanSpinner').style.display = 'none';
-          document.getElementById('stopScanBtn').style.display = 'none';
-          const d = await api('/api/results?type=' + t); if (!d.error) { currentData = d; render(d) } loadHistory(); loadFolder();
+      } catch(e) { console.error('Results error:', e) }
+      // Fallback: load latest report from history
+      try {
+        const reps = await api('/api/reports');
+        await loadHistory();
+        if (reps && reps.length) {
+          const latest = reps.find(r => r.type === t) || reps[0];
+          await loadReport(latest.filename);
         }
-      }, 2000);
+      } catch(e) { console.error('Fallback error:', e) }
     }
     async function loadHistory() {
       const r = await api('/api/reports');
       const el = document.getElementById('historyList');
       const MAX_VISIBLE = 4;
       if (!r || !r.length) { el.innerHTML = '<div style="padding:6px 16px;color:var(--fg3);font-size:11px">No reports yet</div>'; return }
-      let html = r.slice(0, MAX_VISIBLE).map(x => `<div class="history-item" onclick="loadReport('${x.filename}')">${x.filename.replace(/\.(md|txt)$/, '').replace(/_/g, ' ')}</div>`).join('');
+      const fmt = fmtReportName;
+      let html = r.slice(0, MAX_VISIBLE).map(x => `<div class="history-item${x.filename === activeReportName ? ' active' : ''}" onclick="loadReport('${x.filename}')">${fmt(x.filename)}</div>`).join('');
       if (r.length > MAX_VISIBLE) {
-        html += `<div id="historyMore" style="display:none">${r.slice(MAX_VISIBLE, 30).map(x => `<div class="history-item" onclick="loadReport('${x.filename}')">${x.filename.replace(/\.(md|txt)$/, '').replace(/_/g, ' ')}</div>`).join('')}</div>`;
+        html += `<div id="historyMore" style="display:none">${r.slice(MAX_VISIBLE, 30).map(x => `<div class="history-item${x.filename === activeReportName ? ' active' : ''}" onclick="loadReport('${x.filename}')">${fmt(x.filename)}</div>`).join('')}</div>`;
         html += `<div class="history-item" style="color:var(--accent);font-weight:500;text-align:center" id="historyToggle" onclick="toggleHistoryMore()">Show more (${r.length - MAX_VISIBLE}) ▸</div>`;
       }
       el.innerHTML = html;
@@ -1138,12 +1168,31 @@
     }
     async function loadReport(fn) {
       const d = await api('/api/reports/' + fn); if (d.error) { alert(d.error); return }
+      activeReportName = fn;
+      setActiveReport(fn);
       if (d.raw_markdown) {
         document.getElementById('emptyState').style.display = 'none'; document.getElementById('dashboard').style.display = 'block';
         document.getElementById('serverTable').innerHTML = `<pre style="white-space:pre-wrap;color:var(--fg2);font-size:11px;padding:16px;overflow:auto">${esc(d.raw_markdown)}</pre>`;
         document.getElementById('actionsPanel').style.display = 'none'; return
       }
       currentData = d; render(d);
+    }
+    function setActiveReport(fn) {
+      const el = document.getElementById('activeReport');
+      if (!fn) { el.textContent = ''; return }
+      const fmt = fmtReportName(fn);
+      el.textContent = fmt;
+      // highlight active in history
+      document.querySelectorAll('.history-item').forEach(h => {
+        h.classList.toggle('active', h.textContent === fmt);
+      });
+    }
+    function fmtReportName(fn) {
+      const m = fn.match(/(\w+?)_(?:check_|audit_)?(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})/);
+      if (!m) return fn.replace(/\.(md|txt)$/, '').replace(/_/g, ' ');
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const label = m[1].charAt(0).toUpperCase() + m[1].slice(1);
+      return `${label} ${m[4]} ${months[parseInt(m[3]) - 1]} ${m[5]}:${m[6]}`;
     }
 
     // Render
@@ -1366,20 +1415,16 @@
         });
       }
 
-      // SSH connect button
-      const connectBtn = `<div style="margin-bottom:10px"><button style="padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px" onclick="shellRun('ssh ${host}')">Connect: ${host}</button></div>`;
 
       // Render
       if (!fixes.length) {
         el.innerHTML = `<h4 style="color:var(--ok);margin-bottom:4px">✅ ${srv.name} — All good</h4>
-          <p>No critical issues found on this server.</p>
-          ${connectBtn}`;
+          <p>No critical issues found on this server.</p>`;
         return;
       }
 
       const sevColor = { crit: 'var(--crit)', warn: 'var(--warn)', info: 'var(--fg2)' };
       el.innerHTML = `<h4 style="margin-bottom:8px">${srv.name} — ${fixes.length} fix${fixes.length > 1 ? 'es' : ''}</h4>` +
-        connectBtn +
         fixes.map(f => {
           const cmdsHtml = f.cmds.map(c => `<div style="display:flex;gap:6px;align-items:center;margin:2px 0">
             <code style="flex:1;cursor:pointer;padding:2px 6px;background:var(--bg);border:1px solid var(--border);border-radius:3px;font-size:10px" 
@@ -1396,25 +1441,23 @@
     // Folder (hidden but kept for API)
     async function loadFolder() { /* removed from UI */ }
 
-    // Shell
-    let shHist = [], shIdx = -1;
+    // Shell — output to fix instructions panel
     async function shellRun(cmd) {
-      if (!cmd) return; shHist.push(cmd); shIdx = shHist.length;
-      const o = document.getElementById('shellOutput');
-      o.innerHTML += `<span class="cmd">$ ${esc(cmd)}</span>\n`; o.scrollTop = o.scrollHeight;
+      if (!cmd) return;
+      const o = document.getElementById('fixInstructions');
+      o.innerHTML += `<div style="margin-top:8px;padding:6px;background:var(--bg3);border-radius:4px;font-family:monospace;font-size:11px"><span style="color:var(--accent)">$ ${esc(cmd)}</span></div>`;
+      o.scrollTop = o.scrollHeight;
       try {
         const d = await api('/api/shell', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ command: cmd }) });
-        if (d.stdout) o.innerHTML += esc(d.stdout); if (d.stderr) o.innerHTML += `<span class="err">${esc(d.stderr)}</span>`;
-        if (d.error) o.innerHTML += `<span class="err">${esc(d.error)}</span>\n`;
-        if (d.returncode === 0) o.innerHTML += `<span class="ok">✓</span>\n`; else if (d.returncode > 0) o.innerHTML += `<span class="err">exit ${d.returncode}</span>\n`;
-        o.innerHTML += '\n'
-      } catch (e) { o.innerHTML += `<span class="err">${esc(e.message)}</span>\n\n` } o.scrollTop = o.scrollHeight;
+        let out = '';
+        if (d.stdout) out += esc(d.stdout);
+        if (d.stderr) out += `<span style="color:var(--warn)">${esc(d.stderr)}</span>`;
+        if (d.error) out += `<span style="color:var(--crit)">${esc(d.error)}</span>`;
+        if (d.returncode === 0) out += `<span style="color:var(--ok)">✓</span>`;
+        o.innerHTML += `<pre style="margin:4px 0;padding:6px;background:var(--bg1);border-radius:4px;font-size:10px;overflow:auto;max-height:200px">${out}</pre>`;
+      } catch (e) { o.innerHTML += `<div style="color:var(--crit)">${esc(e.message)}</div>` }
+      o.scrollTop = o.scrollHeight;
     }
-    document.getElementById('shellInput').addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') { const c = this.value.trim(); this.value = ''; if (c) shellRun(c) }
-      else if (e.key === 'ArrowUp') { e.preventDefault(); if (shIdx > 0) { shIdx--; this.value = shHist[shIdx] } }
-      else if (e.key === 'ArrowDown') { e.preventDefault(); if (shIdx < shHist.length - 1) { shIdx++; this.value = shHist[shIdx] } else { shIdx = shHist.length; this.value = '' } }
-    });
 
     loadHistory();
   </script>

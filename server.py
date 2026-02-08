@@ -361,14 +361,20 @@ def run_scan(scan_type: str, servers: list[str] | None = None):
             # Find the latest report
             reps = list_reports()
             type_reps = [r for r in reps if r["type"] == scan_type]
+            print(f"[DEBUG] Found {len(type_reps)} reports for type '{scan_type}'")
             if type_reps:
                 latest = REPORTS_DIR / type_reps[0]["filename"]
+                print(f"[DEBUG] Loading report: {latest}")
                 md_text = latest.read_text(encoding="utf-8", errors="replace")
                 if scan_type == "security":
-                    _last_results[scan_type] = parse_security_report(md_text)
+                    parsed = parse_security_report(md_text)
+                    print(f"[DEBUG] Parsed: score={parsed.get('score')}, servers={len(parsed.get('servers', []))}")
+                    _last_results[scan_type] = parsed
                 else:
                     _last_results[scan_type] = {"raw_markdown": md_text, "generated": type_reps[0]["modified"]}
                 _last_results[scan_type]["report_file"] = type_reps[0]["filename"]
+            else:
+                print(f"[DEBUG] No reports found for type '{scan_type}'")
 
         except subprocess.TimeoutExpired:
             _active_scan["log"].append("ERROR: Scan timed out after 10 minutes")
@@ -509,10 +515,18 @@ def api_shell():
     cmd = data.get("command", "").strip()
     if not cmd:
         return jsonify({"error": "No command provided"})
+    # If bare SSH (no command), append a default command to avoid interactive hang
+    import shlex
+    parts = cmd.split()
+    if parts and parts[0] == 'ssh' and '"' not in cmd and "'" not in cmd:
+        # bare: ssh host -> ssh host "hostname && uptime && df -h"
+        if len(parts) == 2:
+            cmd = f'{cmd} "hostname && uptime && df -h"'
+    timeout = 60 if 'ssh' in cmd else 30
     try:
         proc = subprocess.run(
             cmd, shell=True, capture_output=True, text=True,
-            timeout=30, cwd=str(BASE_DIR),
+            timeout=timeout, cwd=str(BASE_DIR),
         )
         return jsonify({
             "stdout": proc.stdout[-8000:] if proc.stdout else "",
@@ -520,7 +534,7 @@ def api_shell():
             "returncode": proc.returncode,
         })
     except subprocess.TimeoutExpired:
-        return jsonify({"error": "Command timed out (30s)", "stdout": "", "stderr": "", "returncode": -1})
+        return jsonify({"error": f"Command timed out ({timeout}s)", "stdout": "", "stderr": "", "returncode": -1})
     except Exception as e:
         return jsonify({"error": str(e), "stdout": "", "stderr": "", "returncode": -1})
 
