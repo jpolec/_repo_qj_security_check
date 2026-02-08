@@ -1,0 +1,1423 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QJ Security Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box
+    }
+
+    :root {
+      --bg: #0b0f19;
+      --bg2: #131a2b;
+      --bg3: #1a2336;
+      --bg4: #222d42;
+      --fg: #c9d1d9;
+      --fg2: #8b949e;
+      --fg3: #6e7681;
+      --border: #21262d;
+      --ok: #3fb950;
+      --ok-bg: rgba(63, 185, 80, .08);
+      --warn: #d29922;
+      --warn-bg: rgba(210, 153, 34, .08);
+      --crit: #f85149;
+      --crit-bg: rgba(248, 81, 73, .08);
+      --accent: #58a6ff;
+      --accent2: #388bfd;
+      --accent-bg: rgba(56, 139, 253, .06);
+      --radius: 8px;
+      --radius-sm: 6px;
+      --font: 'Inter', system-ui, -apple-system, sans-serif;
+      --detail-border: rgba(255, 255, 255, .04);
+      --row-hover: rgba(255, 255, 255, .03);
+    }
+
+    [data-theme="light"] {
+      --bg: #f6f8fa;
+      --bg2: #ffffff;
+      --bg3: #f0f2f5;
+      --bg4: #d8dee4;
+      --fg: #1f2328;
+      --fg2: #57606a;
+      --fg3: #6e7781;
+      --border: #d0d7de;
+      --ok: #1a7f37;
+      --ok-bg: rgba(26, 127, 55, .06);
+      --warn: #9a6700;
+      --warn-bg: rgba(154, 103, 0, .06);
+      --crit: #cf222e;
+      --crit-bg: rgba(207, 34, 46, .06);
+      --accent: #0969da;
+      --accent2: #0550ae;
+      --accent-bg: rgba(9, 105, 218, .04);
+      --detail-border: rgba(0, 0, 0, .06);
+      --row-hover: rgba(0, 0, 0, .02);
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--fg);
+      min-height: 100vh;
+      line-height: 1.5;
+      font-size: 13px
+    }
+
+    /* Layout */
+    .app {
+      display: grid;
+      grid-template-columns: 240px 1fr var(--rp-width, 300px);
+      min-height: 100vh;
+      transition: grid-template-columns 0.3s ease
+    }
+
+    .sidebar {
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      padding: 16px 0;
+      display: flex;
+      flex-direction: column;
+      font-size: 12px
+    }
+
+    .main {
+      padding: 24px 24px;
+      overflow-y: auto;
+      max-height: 100vh
+    }
+
+    .right-panel {
+      background: var(--bg2);
+      border-left: 1px solid var(--border);
+      padding: 0;
+      overflow-y: auto;
+      max-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      transition: width 0.3s ease
+    }
+
+    .rp-expand-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      background: var(--bg3);
+      color: var(--fg2);
+      cursor: pointer;
+      font-size: 10px;
+      margin-left: auto;
+      transition: all 0.15s
+    }
+
+    .rp-expand-btn:hover {
+      background: var(--bg4);
+      color: var(--fg)
+    }
+
+    .right-panel .panel {
+      border-radius: 0;
+      border: none;
+      border-bottom: 1px solid var(--border);
+      background: transparent
+    }
+
+    .right-panel .panel-hdr {
+      padding: 10px 14px;
+      font-size: 11px;
+      position: sticky;
+      top: 0;
+      background: var(--bg2);
+      z-index: 1
+    }
+
+    .right-panel .panel-body {
+      max-height: none
+    }
+
+    /* Sidebar */
+    .logo {
+      padding: 0 16px 16px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between
+    }
+
+    .logo-left {
+      display: flex;
+      align-items: center;
+      gap: 8px
+    }
+
+    .logo-left img {
+      width: 22px;
+      height: 22px;
+      border-radius: 4px
+    }
+
+    .logo-left h1 {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: -.01em
+    }
+
+    .theme-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--fg2);
+      width: 28px;
+      height: 28px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all .15s
+    }
+
+    .theme-btn:hover {
+      background: var(--bg3);
+      color: var(--fg)
+    }
+
+    .theme-btn svg {
+      width: 14px;
+      height: 14px;
+      fill: currentColor
+    }
+
+    .scan-actions {
+      padding: 0 12px;
+      margin-bottom: 12px
+    }
+
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      width: 100%;
+      padding: 7px 12px;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .15s;
+      font-family: var(--font)
+    }
+
+    .btn-primary {
+      background: var(--accent2);
+      color: #fff
+    }
+
+    .btn-primary:hover {
+      background: var(--accent)
+    }
+
+    .btn-primary:disabled {
+      opacity: .4;
+      cursor: not-allowed
+    }
+
+    .btn-secondary {
+      background: var(--bg3);
+      color: var(--fg2);
+      border: 1px solid var(--border);
+      margin-top: 6px
+    }
+
+    .btn-secondary:hover {
+      background: var(--bg4);
+      color: var(--fg)
+    }
+
+    .scan-types {
+      padding: 0 12px;
+      margin-bottom: 12px
+    }
+
+    .scan-types label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 6px;
+      font-size: 11px;
+      color: var(--fg2);
+      cursor: pointer;
+      border-radius: 4px
+    }
+
+    .scan-types label:hover {
+      background: var(--bg3)
+    }
+
+    .scan-types input {
+      accent-color: var(--accent)
+    }
+
+    .sidebar-title {
+      padding: 0 16px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--fg3);
+      font-weight: 600;
+      margin-bottom: 6px
+    }
+
+    .history-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 6px
+    }
+
+    .history-item {
+      padding: 5px 10px;
+      border-radius: var(--radius-sm);
+      font-size: 11px;
+      cursor: pointer;
+      transition: background .1s;
+      color: var(--fg2)
+    }
+
+    .history-item:hover {
+      background: var(--bg3)
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px
+    }
+
+    .header h2 {
+      font-size: 16px;
+      font-weight: 700
+    }
+
+    .header-meta {
+      font-size: 11px;
+      color: var(--fg3)
+    }
+
+    .badge {
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 10px;
+      font-weight: 600
+    }
+
+    .badge.scanning {
+      background: var(--accent-bg);
+      color: var(--accent);
+      animation: pulse 2s infinite
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1
+      }
+
+      50% {
+        opacity: .4
+      }
+    }
+
+    /* Score row */
+    .score-bar {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      margin-bottom: 20px;
+      padding: 14px 20px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius)
+    }
+
+    .score-circle {
+      position: relative;
+      width: 56px;
+      height: 56px;
+      flex-shrink: 0
+    }
+
+    .score-circle svg {
+      transform: rotate(-90deg)
+    }
+
+    .score-circle .trk {
+      fill: none;
+      stroke: var(--bg3);
+      stroke-width: 5
+    }
+
+    .score-circle .prg {
+      fill: none;
+      stroke-width: 5;
+      stroke-linecap: round;
+      transition: stroke-dashoffset .8s, stroke .4s
+    }
+
+    .score-num {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 700
+    }
+
+    .metrics {
+      display: flex;
+      gap: 24px;
+      flex: 1
+    }
+
+    .metric {
+      text-align: center
+    }
+
+    .metric .v {
+      font-size: 18px;
+      font-weight: 700
+    }
+
+    .metric .l {
+      font-size: 10px;
+      color: var(--fg3);
+      text-transform: uppercase;
+      letter-spacing: .04em
+    }
+
+    .metric.ok .v {
+      color: var(--ok)
+    }
+
+    .metric.warn .v {
+      color: var(--warn)
+    }
+
+    .metric.crit .v {
+      color: var(--crit)
+    }
+
+    /* Server rows */
+    .section-title {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--fg3);
+      margin: 16px 0 8px
+    }
+
+    .server-table {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin-bottom: 20px
+    }
+
+    .srv-row {
+      display: grid;
+      grid-template-columns: 12px 1fr 50px 70px 50px 60px 70px 24px;
+      gap: 8px;
+      align-items: center;
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background .1s;
+      font-size: 12px
+    }
+
+    .srv-row:last-child {
+      border-bottom: none
+    }
+
+    .srv-row:hover {
+      background: var(--row-hover)
+    }
+
+    .srv-row .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0
+    }
+
+    .dot-ok {
+      background: var(--ok)
+    }
+
+    .dot-warn {
+      background: var(--warn)
+    }
+
+    .dot-crit {
+      background: var(--crit)
+    }
+
+    .srv-row .name {
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px
+    }
+
+    .srv-row .name .host {
+      color: var(--fg3);
+      font-weight: 400;
+      font-family: monospace;
+      font-size: 11px
+    }
+
+    .srv-row .val {
+      text-align: center;
+      font-size: 11px
+    }
+
+    .srv-row .val.green {
+      color: var(--ok)
+    }
+
+    .srv-row .val.yellow {
+      color: var(--warn)
+    }
+
+    .srv-row .val.red {
+      color: var(--crit)
+    }
+
+    .srv-row .chev {
+      color: var(--fg3);
+      font-size: 14px;
+      text-align: center;
+      transition: transform .15s
+    }
+
+    .srv-row .chev.open {
+      transform: rotate(180deg)
+    }
+
+    .srv-header {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      color: var(--fg3);
+      cursor: default;
+      font-weight: 600;
+      padding: 6px 16px
+    }
+
+    .srv-header:hover {
+      background: transparent
+    }
+
+    .srv-unreachable .name {
+      color: var(--crit)
+    }
+
+    /* Server details */
+    .srv-details {
+      display: none;
+      padding: 12px 16px 12px 36px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+      font-size: 12px
+    }
+
+    .srv-details.open {
+      display: block
+    }
+
+    .srv-details-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px
+    }
+
+    .det-section h4 {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--fg3);
+      margin-bottom: 6px;
+      font-weight: 600
+    }
+
+    .det-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 2px 0;
+      border-bottom: 1px solid var(--detail-border)
+    }
+
+    .det-row .k {
+      color: var(--fg2)
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 600
+    }
+
+    .tag.ok {
+      background: var(--ok-bg);
+      color: var(--ok)
+    }
+
+    .tag.warn {
+      background: var(--warn-bg);
+      color: var(--warn)
+    }
+
+    .tag.crit {
+      background: var(--crit-bg);
+      color: var(--crit)
+    }
+
+    .tag.info {
+      background: var(--accent-bg);
+      color: var(--accent)
+    }
+
+    .ports-box {
+      font-family: monospace;
+      font-size: 11px;
+      color: var(--fg2);
+      max-height: 80px;
+      overflow-y: auto;
+      background: var(--bg2);
+      border-radius: 4px;
+      padding: 6px 8px;
+      margin-top: 4px
+    }
+
+    .ports-box div {
+      padding: 1px 0
+    }
+
+    /* Actions */
+    .actions-panel {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      margin-bottom: 20px
+    }
+
+    .actions-panel h3 {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--fg3);
+      margin-bottom: 8px
+    }
+
+    .act-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 4px 0;
+      border-bottom: 1px solid var(--detail-border);
+      font-size: 12px
+    }
+
+    .act-item:last-child {
+      border: none
+    }
+
+    .act-icon {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin-top: 5px
+    }
+
+    .act-icon.c {
+      background: var(--crit)
+    }
+
+    .act-icon.w {
+      background: var(--warn)
+    }
+
+    .act-icon.i {
+      background: var(--accent)
+    }
+
+    /* Bottom panels */
+    .bottom-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 20px
+    }
+
+    .panel {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden
+    }
+
+    .panel-hdr {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--fg2)
+    }
+
+    .panel-body {
+      max-height: 280px;
+      overflow-y: auto
+    }
+
+    /* File list */
+    .file-row {
+      display: grid;
+      grid-template-columns: 1fr 60px 100px;
+      gap: 6px;
+      padding: 4px 16px;
+      border-bottom: 1px solid var(--detail-border);
+      font-size: 11px;
+      cursor: pointer;
+      transition: background .1s
+    }
+
+    .file-row:hover {
+      background: var(--row-hover)
+    }
+
+    .file-row .fn {
+      font-family: monospace;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap
+    }
+
+    .file-row .fs {
+      color: var(--fg3);
+      text-align: right
+    }
+
+    .file-row .fd {
+      color: var(--fg3);
+      text-align: right
+    }
+
+    .folder-path {
+      font-size: 10px;
+      color: var(--fg3);
+      font-family: monospace;
+      padding: 4px 16px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border)
+    }
+
+    /* Instructions */
+    .instructions {
+      font-size: 12px;
+      color: var(--fg2);
+      line-height: 1.6;
+      padding: 12px 16px
+    }
+
+    .instructions h4 {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--fg3);
+      margin: 12px 0 4px;
+      font-weight: 600
+    }
+
+    .instructions h4:first-child {
+      margin-top: 0
+    }
+
+    .instructions code {
+      background: var(--bg3);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 10px;
+      color: var(--accent);
+      font-family: monospace
+    }
+
+    .instructions ul {
+      padding-left: 14px;
+      margin: 2px 0
+    }
+
+    .instructions li {
+      margin: 2px 0
+    }
+
+    /* Shell */
+    .shell-out {
+      background: var(--bg);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 11px;
+      line-height: 1.5;
+      padding: 8px 12px;
+      min-height: 160px;
+      max-height: 260px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      color: var(--fg2)
+    }
+
+    .shell-out .cmd {
+      color: var(--accent);
+      font-weight: 600
+    }
+
+    .shell-out .err {
+      color: var(--crit)
+    }
+
+    .shell-out .ok {
+      color: var(--ok)
+    }
+
+    .shell-in {
+      display: flex;
+      align-items: center;
+      border-top: 1px solid var(--border)
+    }
+
+    .shell-prompt {
+      padding: 6px 0 6px 12px;
+      color: var(--accent);
+      font-family: monospace;
+      font-size: 11px;
+      font-weight: 600
+    }
+
+    .shell-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--fg);
+      font-family: monospace;
+      font-size: 11px;
+      padding: 6px 12px 6px 4px;
+      outline: none
+    }
+
+    .shell-input::placeholder {
+      color: var(--fg3)
+    }
+
+    .quick-cmds {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      padding: 6px 12px;
+      border-top: 1px solid var(--border)
+    }
+
+    .qc {
+      padding: 2px 8px;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      font-size: 9px;
+      font-family: monospace;
+      color: var(--fg2);
+      cursor: pointer;
+      transition: all .1s
+    }
+
+    .qc:hover {
+      background: var(--bg4);
+      color: var(--fg)
+    }
+
+    /* Empty/spinner */
+    .empty {
+      text-align: center;
+      padding: 60px 32px;
+      color: var(--fg3)
+    }
+
+    .empty h3 {
+      font-size: 14px;
+      color: var(--fg2);
+      margin: 8px 0 4px
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .7s linear infinite
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg)
+      }
+    }
+
+    @media(max-width:1100px) {
+      .app {
+        grid-template-columns: 200px 1fr 260px
+      }
+    }
+
+    @media(max-width:900px) {
+      .app {
+        grid-template-columns: 1fr
+      }
+
+      .sidebar {
+        display: none
+      }
+
+      .right-panel {
+        display: none
+      }
+
+      .main {
+        padding: 16px
+      }
+
+      .srv-details-grid {
+        grid-template-columns: 1fr
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="logo">
+        <div class="logo-left">
+          <img src="https://quantjourney.cloud/qj_logo_bw.png" alt="QJ">
+          <h1>QJ | Security</h1>
+        </div>
+        <button class="theme-btn" id="themeToggle" onclick="toggleTheme()" title="Toggle theme">
+          <svg id="themeIcon" viewBox="0 0 16 16">
+            <path
+              d="M8 12a4 4 0 100-8 4 4 0 000 8zm0 1A5 5 0 118 3a5 5 0 010 10zm0-12a.5.5 0 01.5.5v1a.5.5 0 01-1 0v-1A.5.5 0 018 1zm0 12a.5.5 0 01.5.5v1a.5.5 0 01-1 0v-1A.5.5 0 018 13zm7-5a.5.5 0 010 1h-1a.5.5 0 010-1h1zM3 8a.5.5 0 010 1H2a.5.5 0 010-1h1zm9.95-4.36a.5.5 0 010 .71l-.7.7a.5.5 0 01-.71-.7l.7-.71a.5.5 0 01.71 0zM4.46 11.54a.5.5 0 010 .7l-.7.71a.5.5 0 01-.71-.71l.7-.7a.5.5 0 01.71 0zm8.49 1.41a.5.5 0 01-.71 0l-.7-.7a.5.5 0 01.7-.71l.71.7a.5.5 0 010 .71zM4.46 4.46a.5.5 0 01-.7 0l-.71-.7a.5.5 0 11.7-.71l.71.7a.5.5 0 010 .71z" />
+          </svg>
+        </button>
+      </div>
+      <div class="scan-actions">
+        <button class="btn btn-primary" id="runScanBtn" onclick="runScan()">▶ Run Scan</button>
+        <button class="btn btn-secondary" id="stopScanBtn" onclick="stopScan()"
+          style="display:none;background:var(--crit);color:#fff">■ Stop</button>
+        <button class="btn btn-secondary" onclick="loadLatest()">↻ Load Latest</button>
+      </div>
+      <div class="scan-types">
+        <label><input type="radio" name="scanType" value="security" checked> Security Check</label>
+        <label><input type="radio" name="scanType" value="reachability"> Reachability</label>
+        <label><input type="radio" name="scanType" value="exposure"> Exposure</label>
+      </div>
+      <div class="sidebar-title" style="display:flex;align-items:center;justify-content:space-between">Servers
+        <span style="font-size:10px;color:var(--accent);cursor:pointer;font-weight:400"
+          onclick="toggleAllServers()">all/none</span>
+      </div>
+      <div class="scan-types" id="serverPicker" style="padding:0 16px 8px">
+        <label><input type="checkbox" name="srv" value="sce" checked> sce</label>
+        <label><input type="checkbox" name="srv" value="dat" checked> dat</label>
+        <label><input type="checkbox" name="srv" value="api" checked> api</label>
+        <label><input type="checkbox" name="srv" value="edge" checked> edge</label>
+        <label><input type="checkbox" name="srv" value="db" checked> db</label>
+        <label><input type="checkbox" name="srv" value="res" checked> res</label>
+        <label><input type="checkbox" name="srv" value="ai" checked> ai</label>
+      </div>
+      <div class="sidebar-title">History</div>
+      <div class="history-list" id="historyList"></div>
+    </aside>
+
+    <main class="main" id="mainContent">
+      <div class="empty" id="emptyState">
+        <img src="https://quantjourney.cloud/qj_logo_bw.png" alt="QJ" style="width:36px;opacity:.3;margin-bottom:8px">
+        <h3>QJ Security Dashboard</h3>
+        <p>Load the latest report or run a new scan.</p>
+      </div>
+
+      <div id="dashboard" style="display:none">
+        <div class="header">
+          <h2>Security Report</h2>
+          <span id="statusBadge" class="badge" style="display:none"></span>
+        </div>
+
+        <!-- Scan Log (shown during scans) -->
+        <div class="panel" id="scanLogPanel" style="display:none;margin-bottom:20px">
+          <div class="panel-hdr" style="cursor:pointer;display:flex;align-items:center" onclick="toggleScanLog()">Scan
+            Log <span class="spinner" id="scanSpinner" style="margin-left:8px;display:none"></span><span
+              style="margin-left:auto;font-size:10px" id="scanLogChev">▴</span></div>
+          <div class="shell-out" id="scanLogOutput" style="min-height:120px;max-height:300px"></div>
+        </div>
+
+        <!-- Score bar -->
+        <div class="score-bar">
+          <div class="score-circle">
+            <svg viewBox="0 0 56 56" width="56" height="56">
+              <circle class="trk" cx="28" cy="28" r="24" />
+              <circle class="prg" id="scoreArc" cx="28" cy="28" r="24" stroke-dasharray="150.8"
+                stroke-dashoffset="150.8" />
+            </svg>
+            <div class="score-num" id="scoreNum">—</div>
+          </div>
+          <div class="metrics" id="metricsBar"></div>
+        </div>
+
+        <!-- Servers -->
+        <div class="section-title">Servers</div>
+        <div class="server-table" id="serverTable">
+          <div class="srv-row srv-header">
+            <span></span><span>Server</span><span class="val">Critical</span><span class="val">Updates</span><span
+              class="val">Reboot</span><span class="val">SSH</span><span class="val">Docker</span><span></span>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="actions-panel" id="actionsPanel" style="display:none">
+          <h3>Actions Required</h3>
+          <div id="actionsList"></div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Right Panel: Fix Instructions + Terminal -->
+    <aside class="right-panel" id="rightPanel">
+      <div class="panel" style="flex:1">
+        <div class="panel-hdr" style="display:flex;align-items:center">Fix Instructions
+          <button class="rp-expand-btn" id="rpExpandBtn" onclick="toggleRightPanel()"
+            title="Expand / collapse panel">◀</button>
+        </div>
+        <div id="fixInstructions" class="panel-body"
+          style="display:block;padding:10px 14px;font-size:11px;color:var(--fg2);overflow-y:auto;max-height:40vh">
+          <p style="color:var(--fg3)">Click a server to see fix instructions.</p>
+        </div>
+      </div>
+      <div class="panel" style="flex:1;display:flex;flex-direction:column">
+        <div class="panel-hdr">Terminal
+          <div id="sshButtons" style="display:inline;margin-left:8px"></div>
+        </div>
+        <div id="shellPanel" style="display:flex;flex-direction:column;flex:1">
+          <div class="shell-out" id="shellOutput" style="flex:1;min-height:100px;max-height:none">Ready.
+          </div>
+          <div class="shell-in">
+            <span class="shell-prompt">$</span>
+            <input class="shell-input" id="shellInput" type="text" placeholder="Enter command..." autocomplete="off">
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    const API = '';
+    let currentData = null, pollTimer = null;
+
+    async function api(path, opts) { const r = await fetch(API + path, opts); return r.json() }
+
+    // Theme
+    const sunPath = "M8 12a4 4 0 100-8 4 4 0 000 8zm0 1A5 5 0 118 3a5 5 0 010 10zm0-12a.5.5 0 01.5.5v1a.5.5 0 01-1 0v-1A.5.5 0 018 1zm0 12a.5.5 0 01.5.5v1a.5.5 0 01-1 0v-1A.5.5 0 018 13zm7-5a.5.5 0 010 1h-1a.5.5 0 010-1h1zM3 8a.5.5 0 010 1H2a.5.5 0 010-1h1zm9.95-4.36a.5.5 0 010 .71l-.7.7a.5.5 0 01-.71-.7l.7-.71a.5.5 0 01.71 0zM4.46 11.54a.5.5 0 010 .7l-.7.71a.5.5 0 01-.71-.71l.7-.7a.5.5 0 01.71 0zm8.49 1.41a.5.5 0 01-.71 0l-.7-.7a.5.5 0 01.7-.71l.71.7a.5.5 0 010 .71zM4.46 4.46a.5.5 0 01-.7 0l-.71-.7a.5.5 0 11.7-.71l.71.7a.5.5 0 010 .71z";
+    const moonPath = "M6 .278a.768.768 0 01.08.858 7.2 7.2 0 00-.878 3.46c0 4.021 3.278 7.277 7.318 7.277.527 0 1.04-.055 1.533-.16a.787.787 0 01.81.316.733.733 0 01-.031.893A8.349 8.349 0 018.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.752.752 0 016 .278z";
+
+    function toggleTheme() {
+      const t = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', t);
+      localStorage.setItem('qj-theme', t);
+      document.getElementById('themeIcon').innerHTML = '<path d="' + (t === 'light' ? moonPath : sunPath) + '"/>';
+    }
+    function initTheme() {
+      const t = localStorage.getItem('qj-theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', t);
+      document.getElementById('themeIcon').innerHTML = '<path d="' + (t === 'light' ? moonPath : sunPath) + '"/>';
+    }
+    initTheme();
+
+    // Data loading
+    async function loadLatest() {
+      try { const d = await api('/api/latest'); if (d.error) { alert(d.error); return } currentData = d; render(d) } catch (e) { alert(e.message) }
+    }
+    async function runScan() {
+      const t = document.querySelector('input[name="scanType"]:checked').value;
+      const selectedServers = [...document.querySelectorAll('input[name="srv"]:checked')].map(c => c.value);
+      if (!selectedServers.length) { alert('Select at least one server'); return }
+      const btn = document.getElementById('runScanBtn'); btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Scanning...';
+      document.getElementById('stopScanBtn').style.display = 'inline-block';
+      document.getElementById('emptyState').style.display = 'none';
+      document.getElementById('dashboard').style.display = 'block';
+      document.getElementById('scanLogPanel').style.display = 'block';
+      document.getElementById('scanLogOutput').textContent = 'Starting scan (' + selectedServers.join(', ') + ')...\n';
+      document.getElementById('scanSpinner').style.display = 'inline-block';
+      try { await api('/api/scan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: t, servers: selectedServers }) }); pollScan(t) }
+      catch (e) { alert(e.message); btn.disabled = false; btn.innerHTML = '▶ Run Scan'; document.getElementById('stopScanBtn').style.display = 'none' }
+    }
+    async function stopScan() {
+      try { await api('/api/scan/stop', { method: 'POST' }) } catch (e) { }
+      document.getElementById('stopScanBtn').style.display = 'none';
+    }
+    function pollScan(t) {
+      const b = document.getElementById('statusBadge'); b.style.display = 'inline-block'; b.className = 'badge scanning'; b.textContent = 'Scanning...';
+      let seenLines = 0;
+      pollTimer = setInterval(async () => {
+        const s = await api('/api/scan/status?since=' + seenLines);
+        if (s.log && s.log.length) {
+          const out = document.getElementById('scanLogOutput');
+          s.log.forEach(l => out.textContent += l + '\n');
+          out.scrollTop = out.scrollHeight;
+          seenLines = s.log_lines;
+        }
+        if (!s.running) {
+          clearInterval(pollTimer); b.style.display = 'none';
+          document.getElementById('runScanBtn').disabled = false; document.getElementById('runScanBtn').innerHTML = '▶ Run Scan';
+          document.getElementById('scanLogPanel').querySelector('.panel-hdr').innerHTML = '✓ Scan Complete <span style="margin-left:auto;font-size:10px" id="scanLogChev">▴</span>';
+          document.getElementById('scanSpinner').style.display = 'none';
+          document.getElementById('stopScanBtn').style.display = 'none';
+          const d = await api('/api/results?type=' + t); if (!d.error) { currentData = d; render(d) } loadHistory(); loadFolder();
+        }
+      }, 2000);
+    }
+    async function loadHistory() {
+      const r = await api('/api/reports');
+      const el = document.getElementById('historyList');
+      const MAX_VISIBLE = 4;
+      if (!r || !r.length) { el.innerHTML = '<div style="padding:6px 16px;color:var(--fg3);font-size:11px">No reports yet</div>'; return }
+      let html = r.slice(0, MAX_VISIBLE).map(x => `<div class="history-item" onclick="loadReport('${x.filename}')">${x.filename.replace(/\.(md|txt)$/, '').replace(/_/g, ' ')}</div>`).join('');
+      if (r.length > MAX_VISIBLE) {
+        html += `<div id="historyMore" style="display:none">${r.slice(MAX_VISIBLE, 30).map(x => `<div class="history-item" onclick="loadReport('${x.filename}')">${x.filename.replace(/\.(md|txt)$/, '').replace(/_/g, ' ')}</div>`).join('')}</div>`;
+        html += `<div class="history-item" style="color:var(--accent);font-weight:500;text-align:center" id="historyToggle" onclick="toggleHistoryMore()">Show more (${r.length - MAX_VISIBLE}) ▸</div>`;
+      }
+      el.innerHTML = html;
+    }
+    function toggleHistoryMore() {
+      const m = document.getElementById('historyMore'), t = document.getElementById('historyToggle');
+      if (m.style.display === 'none') { m.style.display = 'block'; t.textContent = '◂ Show less'; }
+      else { m.style.display = 'none'; t.textContent = `Show more ▸`; }
+    }
+    function toggleAllServers() {
+      const cbs = document.querySelectorAll('input[name="srv"]');
+      const allChecked = [...cbs].every(c => c.checked);
+      cbs.forEach(c => c.checked = !allChecked);
+    }
+    async function loadReport(fn) {
+      const d = await api('/api/reports/' + fn); if (d.error) { alert(d.error); return }
+      if (d.raw_markdown) {
+        document.getElementById('emptyState').style.display = 'none'; document.getElementById('dashboard').style.display = 'block';
+        document.getElementById('serverTable').innerHTML = `<pre style="white-space:pre-wrap;color:var(--fg2);font-size:11px;padding:16px;overflow:auto">${esc(d.raw_markdown)}</pre>`;
+        document.getElementById('actionsPanel').style.display = 'none'; return
+      }
+      currentData = d; render(d);
+    }
+
+    // Render
+    function render(d) {
+      document.getElementById('emptyState').style.display = 'none';
+      document.getElementById('dashboard').style.display = 'block';
+      renderScore(d.score || 0); renderMetrics(d.summary || {}); renderServers(d.servers || []); renderActions(d.actions || []);
+    }
+
+    function renderScore(s) {
+      const c = 2 * Math.PI * 24, o = c * (1 - s / 100), a = document.getElementById('scoreArc');
+      a.style.strokeDasharray = c; a.style.strokeDashoffset = o;
+      let col = 'var(--ok)'; if (s < 60) col = 'var(--crit)'; else if (s < 80) col = 'var(--warn)';
+      a.style.stroke = col; const n = document.getElementById('scoreNum'); n.textContent = s; n.style.color = col;
+    }
+
+    function renderMetrics(sm) {
+      const items = [
+        { k: 'servers_checked', l: 'Servers' }, { k: 'connection_errors', l: 'Errors' },
+        { k: 'security_updates', l: 'Critical' }, { k: 'pending_updates', l: 'Updates' },
+        { k: 'servers_need_reboot', l: 'Reboot' }, { k: 'suspicious_activity', l: 'Suspicious' }
+      ];
+      // Build error detail (which servers are unreachable)
+      let errorServers = [];
+      if (currentData && currentData.servers) {
+        currentData.servers.forEach(s => { if (!s.connected) errorServers.push(s.name) });
+      }
+      // Build critical updates count
+      let secTotal = 0;
+      if (currentData && currentData.servers) {
+        currentData.servers.forEach(s => { if (s.connected) secTotal += parseInt(s.updates?.security || '0') });
+      }
+      if (!sm.security_updates) sm.security_updates = { value: secTotal, status: secTotal > 0 ? 'CRIT' : 'OK' };
+
+      document.getElementById('metricsBar').innerHTML = items.map(it => {
+        const d = sm[it.k] || { value: '—', status: 'OK' };
+        const c = d.status === 'CRIT' ? 'crit' : d.status === 'WARN' ? 'warn' : 'ok';
+        let detail = '';
+        if (it.k === 'connection_errors' && errorServers.length) {
+          detail = `<div style="font-size:9px;color:var(--fg3);margin-top:2px">${errorServers.join(', ')}</div>`;
+        }
+        return `<div class="metric ${c}"><div class="v">${d.value}</div><div class="l">${it.l}</div>${detail}</div>`;
+      }).join('');
+    }
+
+    function renderServers(servers) {
+      const tbl = document.getElementById('serverTable');
+      let html = `<div class="srv-row srv-header"><span></span><span>Server</span><span class="val">Critical</span><span class="val">Updates</span><span class="val">Reboot</span><span class="val">SSH</span><span class="val">Docker</span><span></span></div>`;
+      servers.forEach((srv, i) => {
+        if (!srv.connected) {
+          html += `<div class="srv-row srv-unreachable" onclick="selectServer(${i})"><span class="dot dot-crit"></span><span class="name">${srv.name}</span><span class="val red" style="grid-column:3/8">UNREACHABLE</span><span class="chev" id="sc${i}">▾</span></div>`;
+          html += `<div class="srv-details" id="sd${i}"><p style="color:var(--fg3)">Connection failed — server is unreachable.</p></div>`;
+          return;
+        }
+        const ua = srv.updates?.all || '0', us = srv.updates?.security || '0';
+        const rb = srv.needs_reboot ? 'YES' : 'NO'; const ssh = srv.failed_ssh_24h || '0';
+        const dc = srv.severity === 'ok' ? 'dot-ok' : srv.severity === 'warning' ? 'dot-warn' : 'dot-crit';
+        const crc = parseInt(us) > 0 ? 'red' : 'green';
+        const uc = parseInt(ua) > 5 ? 'yellow' : parseInt(ua) > 0 ? '' : 'green';
+        const rc = srv.needs_reboot ? 'yellow' : 'green';
+        const sc = parseInt(ssh) > 100 ? 'red' : parseInt(ssh) > 0 ? 'yellow' : 'green';
+
+        html += `<div class="srv-row" onclick="selectServer(${i})"><span class="dot ${dc}"></span>
+      <span class="name">${srv.name} <span class="host">${srv.host || ''}</span></span>
+      <span class="val ${crc}">${us}</span><span class="val ${uc}">${ua}</span><span class="val ${rc}">${rb}</span><span class="val ${sc}">${ssh}</span>
+      <span class="val">${srv.docker || '—'}</span><span class="chev" id="sc${i}">▾</span></div>`;
+
+        // Detail panel
+        const tools = Object.entries(srv.tools || {}).map(([n, info]) => `<div class="det-row"><span class="k">${n}</span>${info.installed ? '<span class="tag ok">YES</span>' : '<span class="tag crit">NO</span>'}</div>`).join('');
+        const f2b = Object.entries(srv.fail2ban || {}).map(([k, v]) => `<div class="det-row"><span class="k">${k}</span><span>${v}</span></div>`).join('');
+        const res = Object.entries(srv.resources || {}).map(([k, v]) => `<div class="det-row"><span class="k">${k}</span><span>${v}</span></div>`).join('');
+        const ports = (srv.ports || []).map(p => `<div>${esc(p)}</div>`).join('');
+        const updates = (srv.update_list || []).map(u => `<div style="padding:1px 0;font-size:10px;color:var(--fg2)">${esc(u)}</div>`).join('');
+
+        html += `<div class="srv-details" id="sd${i}"><div class="srv-details-grid">
+      <div class="det-section"><h4>System</h4>
+        <div class="det-row"><span class="k">Hostname</span><span>${srv.hostname}</span></div>
+        <div class="det-row"><span class="k">Kernel</span><span>${srv.kernel}</span></div>
+        <div class="det-row"><span class="k">Uptime</span><span>${srv.uptime}</span></div>
+        ${srv.needs_reboot ? `<div class="det-row"><span class="k">Reboot</span><span class="tag warn">${esc(srv.reboot_reason)}</span></div>` : ''}
+        ${updates ? `<div style="margin-top:6px"><h4>Pending Updates</h4><div class="ports-box" style="max-height:100px">${updates}</div></div>` : ''}
+      </div>
+      ${tools ? `<div class="det-section"><h4>Security Tools</h4>${tools}${f2b}</div>` : ''}
+      ${res || ports ? `<div class="det-section"><h4>Resources</h4>${res}${ports ? `<div style="margin-top:6px"><h4>Ports</h4><div class="ports-box">${ports}</div></div>` : ''}</div>` : ''}
+    </div></div>`;
+      });
+      tbl.innerHTML = html;
+    }
+
+    function renderActions(actions) {
+      const p = document.getElementById('actionsPanel'), l = document.getElementById('actionsList');
+      if (!actions.length) { p.style.display = 'none'; return } p.style.display = 'block';
+      l.innerHTML = actions.map(a => {
+        const c = a.severity === 'critical' ? 'c' : a.severity === 'warning' ? 'w' : 'i';
+        return `<div class="act-item"><span class="act-icon ${c}"></span><span>${esc(a.text)}</span></div>`;
+      }).join('');
+    }
+
+    function toggleSrv(i) { document.getElementById('sd' + i)?.classList.toggle('open'); document.getElementById('sc' + i)?.classList.toggle('open') }
+    function togglePanel(id) {
+      const el = document.getElementById(id); const ch = document.getElementById(id + 'Chev');
+      if (el.style.display === 'none') { el.style.display = 'block'; ch?.classList.remove('open') } else { el.style.display = 'none'; ch?.classList.add('open') }
+    }
+
+    function esc(s) { if (!s) return ''; return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') }
+
+    // Right panel expand/collapse
+    let rpExpanded = false;
+    function toggleRightPanel() {
+      rpExpanded = !rpExpanded;
+      document.documentElement.style.setProperty('--rp-width', rpExpanded ? '50vw' : '300px');
+      document.getElementById('rpExpandBtn').textContent = rpExpanded ? '▶' : '◀';
+    }
+
+    // Scan log collapse
+    function toggleScanLog() {
+      const out = document.getElementById('scanLogOutput');
+      const chev = document.getElementById('scanLogChev');
+      if (out.style.display === 'none') { out.style.display = 'block'; chev.textContent = '▴'; }
+      else { out.style.display = 'none'; chev.textContent = '▾'; }
+    }
+
+    // Server selection — show fix instructions (NO auto-SSH)
+    let selectedServerIdx = -1;
+    function selectServer(i) {
+      toggleSrv(i);
+      selectedServerIdx = i;
+      if (!currentData || !currentData.servers) return;
+      const srv = currentData.servers[i];
+      if (!srv) return;
+      showFixInstructions(srv);
+    }
+
+    function sshHost(name) { return 'qj-' + name.toLowerCase() + '-qj'; }
+
+    function showFixInstructions(srv) {
+      const el = document.getElementById('fixInstructions');
+      const host = sshHost(srv.name);
+      if (!srv.connected) {
+        el.innerHTML = `<h4 style="color:var(--crit);margin-bottom:6px">⛔ ${srv.name} — Unreachable</h4>
+          <p>Server cannot be connected. Check:</p>
+          <ul style="margin:6px 0 0 16px;line-height:1.8">
+            <li>SSH config: <code>~/.ssh/config</code></li>
+            <li>Try: <code style="cursor:pointer" onclick="shellRun('ssh ${host}')">${host}</code></li>
+            <li>Check DNS / VPN connectivity</li>
+          </ul>`;
+        return;
+      }
+
+      let fixes = [];
+      const ua = parseInt(srv.updates?.all || '0');
+      const us = parseInt(srv.updates?.security || '0');
+
+      // Security updates
+      if (us > 0) {
+        fixes.push({
+          sev: 'crit', title: `${us} Security Updates`, cmds: [
+            'sudo apt-get update',
+            'sudo apt-get upgrade -y'
+          ]
+        });
+      }
+      if (ua > 0 && ua > us) {
+        fixes.push({
+          sev: 'warn', title: `${ua - us} Regular Updates`, cmds: [
+            'sudo apt-get update',
+            'sudo apt-get upgrade -y'
+          ]
+        });
+      }
+
+      // Reboot needed
+      if (srv.needs_reboot) {
+        fixes.push({
+          sev: 'warn', title: 'Reboot Required', cmds: [
+            'sudo reboot'
+          ], note: srv.reboot_reason
+        });
+      }
+
+      // Missing security tools
+      for (const [name, info] of Object.entries(srv.tools || {})) {
+        if (!info.installed) {
+          if (name === 'Fail2ban') {
+            fixes.push({
+              sev: 'warn', title: `Install ${name}`, cmds: [
+                'sudo apt-get install -y fail2ban',
+                'sudo systemctl enable fail2ban',
+                'sudo systemctl start fail2ban'
+              ]
+            });
+          } else if (name === 'UFW Firewall') {
+            fixes.push({
+              sev: 'warn', title: `Enable UFW`, cmds: [
+                'sudo ufw default deny incoming',
+                'sudo ufw default allow outgoing',
+                'sudo ufw allow ssh',
+                'sudo ufw --force enable'
+              ]
+            });
+          } else if (name === 'Auditd') {
+            fixes.push({
+              sev: 'info', title: `Install ${name}`, cmds: [
+                'sudo apt-get install -y auditd',
+                'sudo systemctl enable auditd'
+              ]
+            });
+          }
+        }
+      }
+
+      // High SSH failures
+      const sshFails = parseInt(srv.failed_ssh_24h || '0');
+      if (sshFails > 100) {
+        fixes.push({
+          sev: 'crit', title: `${sshFails} Failed SSH Logins (24h)`, cmds: [
+            'sudo fail2ban-client status sshd',
+            'sudo journalctl -u sshd --since "24 hours ago" | tail -20'
+          ]
+        });
+      }
+
+      // SSH connect button
+      const connectBtn = `<div style="margin-bottom:10px"><button style="padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px" onclick="shellRun('ssh ${host}')">Connect: ${host}</button></div>`;
+
+      // Render
+      if (!fixes.length) {
+        el.innerHTML = `<h4 style="color:var(--ok);margin-bottom:4px">✅ ${srv.name} — All good</h4>
+          <p>No critical issues found on this server.</p>
+          ${connectBtn}`;
+        return;
+      }
+
+      const sevColor = { crit: 'var(--crit)', warn: 'var(--warn)', info: 'var(--fg2)' };
+      el.innerHTML = `<h4 style="margin-bottom:8px">${srv.name} — ${fixes.length} fix${fixes.length > 1 ? 'es' : ''}</h4>` +
+        connectBtn +
+        fixes.map(f => {
+          const cmdsHtml = f.cmds.map(c => `<div style="display:flex;gap:6px;align-items:center;margin:2px 0">
+            <code style="flex:1;cursor:pointer;padding:2px 6px;background:var(--bg);border:1px solid var(--border);border-radius:3px;font-size:10px" 
+              onclick="shellRun('ssh ${host} \\&quot;${c}\\&quot;')" title="Click to run on ${srv.name}">${esc(c)}</code>
+          </div>`).join('');
+          return `<div style="margin-bottom:10px;padding:8px;background:var(--bg);border-radius:4px;border-left:3px solid ${sevColor[f.sev]}">
+            <div style="font-weight:600;margin-bottom:4px">${esc(f.title)}</div>
+            ${f.note ? `<div style="font-size:10px;color:var(--fg3);margin-bottom:4px">${esc(f.note)}</div>` : ''}
+            ${cmdsHtml}
+          </div>`;
+        }).join('');
+    }
+
+    // Folder (hidden but kept for API)
+    async function loadFolder() { /* removed from UI */ }
+
+    // Shell
+    let shHist = [], shIdx = -1;
+    async function shellRun(cmd) {
+      if (!cmd) return; shHist.push(cmd); shIdx = shHist.length;
+      const o = document.getElementById('shellOutput');
+      o.innerHTML += `<span class="cmd">$ ${esc(cmd)}</span>\n`; o.scrollTop = o.scrollHeight;
+      try {
+        const d = await api('/api/shell', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ command: cmd }) });
+        if (d.stdout) o.innerHTML += esc(d.stdout); if (d.stderr) o.innerHTML += `<span class="err">${esc(d.stderr)}</span>`;
+        if (d.error) o.innerHTML += `<span class="err">${esc(d.error)}</span>\n`;
+        if (d.returncode === 0) o.innerHTML += `<span class="ok">✓</span>\n`; else if (d.returncode > 0) o.innerHTML += `<span class="err">exit ${d.returncode}</span>\n`;
+        o.innerHTML += '\n'
+      } catch (e) { o.innerHTML += `<span class="err">${esc(e.message)}</span>\n\n` } o.scrollTop = o.scrollHeight;
+    }
+    document.getElementById('shellInput').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { const c = this.value.trim(); this.value = ''; if (c) shellRun(c) }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); if (shIdx > 0) { shIdx--; this.value = shHist[shIdx] } }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); if (shIdx < shHist.length - 1) { shIdx++; this.value = shHist[shIdx] } else { shIdx = shHist.length; this.value = '' } }
+    });
+
+    loadHistory();
+  </script>
+</body>
+
+</html>

@@ -26,7 +26,7 @@ REPORT_DIR="./reports"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 REPORT_FILE=""
 VERBOSE=false
-PARALLEL=false
+PARALLEL=true
 
 # Colors
 RED='\033[0;31m'
@@ -171,6 +171,7 @@ echo "kernel: $(uname -r)"
 # ============================================================================
 # 1. CHECK PACKAGE UPDATES
 # ============================================================================
+echo ">>> Checking: Package Updates" >&2
 echo ""
 echo "=== SECTION: UPDATES ==="
 
@@ -181,23 +182,27 @@ if command -v apt-get &> /dev/null; then
     sudo apt-get update -qq 2>/dev/null
     
     # Check available updates
-    UPDATES=$(apt-get -s upgrade 2>/dev/null | grep -c "^Inst" || echo "0")
-    SECURITY_UPDATES=$(apt-get -s upgrade 2>/dev/null | grep -i security | grep -c "^Inst" || echo "0")
+    UPDATES=$(apt-get -s upgrade 2>/dev/null | grep -c "^Inst" 2>/dev/null | tail -1 | tr -cd '0-9')
+    UPDATES=${UPDATES:-0}
+    SECURITY_UPDATES=$(apt-get -s upgrade 2>/dev/null | grep -i security | grep -c "^Inst" 2>/dev/null | tail -1 | tr -cd '0-9')
+    SECURITY_UPDATES=${SECURITY_UPDATES:-0}
     
     echo "pkg_manager: apt"
     echo "updates_available: $UPDATES"
     echo "security_updates: $SECURITY_UPDATES"
     
     # List packages to update
-    if [[ $UPDATES -gt 0 ]]; then
+    if [[ "$UPDATES" -gt 0 ]]; then
         echo "update_list:"
-        apt-get -s upgrade 2>/dev/null | grep "^Inst" | head -20 | sed "s/^/  - /"
+        apt-get -s upgrade 2>/dev/null | grep "^Inst" | head -30 | sed "s/^/  - /"
     fi
     
 elif command -v dnf &> /dev/null; then
     PKG_MANAGER="dnf"
-    UPDATES=$(dnf check-update 2>/dev/null | grep -c "^\S" || echo "0")
-    SECURITY_UPDATES=$(dnf check-update --security 2>/dev/null | grep -c "^\S" || echo "0")
+    UPDATES=$(dnf check-update 2>/dev/null | grep -c "^\S" 2>/dev/null | tail -1 | tr -cd '0-9')
+    UPDATES=${UPDATES:-0}
+    SECURITY_UPDATES=$(dnf check-update --security 2>/dev/null | grep -c "^\S" 2>/dev/null | tail -1 | tr -cd '0-9')
+    SECURITY_UPDATES=${SECURITY_UPDATES:-0}
     
     echo "pkg_manager: dnf"
     echo "updates_available: $UPDATES"
@@ -205,7 +210,8 @@ elif command -v dnf &> /dev/null; then
     
 elif command -v yum &> /dev/null; then
     PKG_MANAGER="yum"
-    UPDATES=$(yum check-update 2>/dev/null | grep -c "^\S" || echo "0")
+    UPDATES=$(yum check-update 2>/dev/null | grep -c "^\S" 2>/dev/null | tail -1 | tr -cd '0-9')
+    UPDATES=${UPDATES:-0}
     
     echo "pkg_manager: yum"
     echo "updates_available: $UPDATES"
@@ -215,6 +221,7 @@ fi
 # ============================================================================
 # 2. CHECK KERNEL RESTART REQUIREMENT
 # ============================================================================
+echo ">>> Checking: Kernel Status" >&2
 echo ""
 echo "=== SECTION: KERNEL ==="
 
@@ -272,6 +279,7 @@ fi
 # ============================================================================
 # 3. CHECK FOR INTRUSION SIGNS
 # ============================================================================
+echo ">>> Checking: Security & Intrusion" >&2
 echo ""
 echo "=== SECTION: SECURITY ==="
 
@@ -367,8 +375,15 @@ if command -v iptables &> /dev/null; then
 fi
 
 # 3.11 Check fail2ban status
+echo ">>> Checking: Fail2ban" >&2
 echo "fail2ban:"
-if command -v fail2ban-client &> /dev/null; then
+if command -v fail2ban-client &>/dev/null; then
+    # Primary: use systemctl (works without sudo)
+    if systemctl is-active --quiet fail2ban 2>/dev/null; then
+        echo "  service_running: true"
+    else
+        echo "  service_running: false"
+    fi
     F2B_STATUS=$(sudo fail2ban-client status 2>/dev/null | head -1 || echo "not running")
     echo "  status: $F2B_STATUS"
     
@@ -387,10 +402,12 @@ if command -v fail2ban-client &> /dev/null; then
         echo "  sshd_jail: not configured"
     fi
 else
+    echo "  service_running: false"
     echo "  status: not installed"
 fi
 
 # 3.12 Check for rootkits (rkhunter/chkrootkit if available)
+echo ">>> Checking: Rootkit Scanner" >&2
 echo "rootkit_scanner:"
 if command -v rkhunter &> /dev/null; then
     RKHUNTER_LOG="/var/log/rkhunter.log"
@@ -410,6 +427,7 @@ else
 fi
 
 # 3.13 Check WireGuard VPN
+echo ">>> Checking: WireGuard VPN" >&2
 echo "wireguard:"
 if ip link show type wireguard &>/dev/null 2>&1; then
     WG_INTERFACES=$(ip link show type wireguard 2>/dev/null | grep -oP "^\d+: \K[^:@]+" || echo "none")
@@ -427,8 +445,15 @@ else
 fi
 
 # 3.14 Check UFW detailed rules
+echo ">>> Checking: UFW Firewall" >&2
 echo "ufw_details:"
-if command -v ufw &> /dev/null; then
+if command -v ufw &>/dev/null; then
+    # Primary: use systemctl (works without sudo)
+    if systemctl is-active --quiet ufw 2>/dev/null; then
+        echo "  service_running: true"
+    else
+        echo "  service_running: false"
+    fi
     UFW_STATUS=$(sudo ufw status verbose 2>/dev/null | head -1 | awk "{print \$2}" || echo "unknown")
     echo "  status: $UFW_STATUS"
     if [[ "$UFW_STATUS" == "active" ]]; then
@@ -442,10 +467,12 @@ if command -v ufw &> /dev/null; then
         done
     fi
 else
+    echo "  service_running: false"
     echo "  status: not installed"
 fi
 
 # 3.15 Check auditd (system auditing)
+echo ">>> Checking: Auditd" >&2
 echo "auditd:"
 if command -v auditctl &> /dev/null; then
     if systemctl is-active auditd &>/dev/null; then
@@ -468,8 +495,283 @@ else
 fi
 
 # ============================================================================
+# 3.16 SSH HARDENING AUDIT
+# ============================================================================
+echo ">>> Checking: SSH Hardening" >&2
+echo ""
+echo "=== SECTION: SSH_HARDENING ==="
+echo "ssh_hardening:"
+
+SSHD_CONFIG="/etc/ssh/sshd_config"
+if [[ -f "$SSHD_CONFIG" ]]; then
+    # PermitRootLogin
+    ROOT_LOGIN=$(grep -i "^PermitRootLogin" "$SSHD_CONFIG" 2>/dev/null | awk "{print \$2}" || echo "not set")
+    echo "  permit_root_login: ${ROOT_LOGIN:-not set}"
+
+    # PasswordAuthentication
+    PASS_AUTH=$(grep -i "^PasswordAuthentication" "$SSHD_CONFIG" 2>/dev/null | awk "{print \$2}" || echo "not set")
+    echo "  password_auth: ${PASS_AUTH:-not set}"
+
+    # PubkeyAuthentication
+    PUBKEY_AUTH=$(grep -i "^PubkeyAuthentication" "$SSHD_CONFIG" 2>/dev/null | awk "{print \$2}" || echo "not set")
+    echo "  pubkey_auth: ${PUBKEY_AUTH:-not set}"
+
+    # MaxAuthTries
+    MAX_AUTH=$(grep -i "^MaxAuthTries" "$SSHD_CONFIG" 2>/dev/null | awk "{print \$2}" || echo "not set")
+    echo "  max_auth_tries: ${MAX_AUTH:-not set}"
+
+    # PermitEmptyPasswords
+    EMPTY_PASS=$(grep -i "^PermitEmptyPasswords" "$SSHD_CONFIG" 2>/dev/null | awk "{print \$2}" || echo "not set")
+    echo "  permit_empty_passwords: ${EMPTY_PASS:-not set}"
+
+    # X11Forwarding
+    X11=$(grep -i "^X11Forwarding" "$SSHD_CONFIG" 2>/dev/null | awk "{print \$2}" || echo "not set")
+    echo "  x11_forwarding: ${X11:-not set}"
+
+    # LoginGraceTime
+    GRACE=$(grep -i "^LoginGraceTime" "$SSHD_CONFIG" 2>/dev/null | awk "{print \$2}" || echo "not set")
+    echo "  login_grace_time: ${GRACE:-not set}"
+
+    # SSH protocol version (older configs)
+    PROTO=$(grep -i "^Protocol" "$SSHD_CONFIG" 2>/dev/null | awk "{print \$2}" || echo "2")
+    echo "  protocol: ${PROTO}"
+
+    # Ciphers & MACs (weak cipher check)
+    WEAK_CIPHERS=$(grep -i "^Ciphers" "$SSHD_CONFIG" 2>/dev/null | grep -ciE "arcfour|3des|blowfish|cast128" || echo "0")
+    echo "  weak_ciphers_configured: $WEAK_CIPHERS"
+else
+    echo "  status: sshd_config not found"
+fi
+
+# ============================================================================
+# 3.17 UNATTENDED-UPGRADES STATUS
+# ============================================================================
+echo ">>> Checking: Auto-Updates" >&2
+echo ""
+echo "=== SECTION: AUTO_UPDATES ==="
+echo "unattended_upgrades:"
+
+if dpkg -l unattended-upgrades &>/dev/null 2>&1; then
+    echo "  installed: true"
+    # Check if enabled
+    AUTO_CFG="/etc/apt/apt.conf.d/20auto-upgrades"
+    if [[ -f "$AUTO_CFG" ]]; then
+        UU_ENABLED=$(grep -i "Unattended-Upgrade" "$AUTO_CFG" 2>/dev/null | grep -c "\"1\"" 2>/dev/null | tail -1 | tr -cd '0-9')
+        UU_ENABLED=${UU_ENABLED:-0}
+        echo "  enabled: $([ "${UU_ENABLED:-0}" -gt 0 ] && echo true || echo false)"
+    else
+        echo "  enabled: unknown (no config)"
+    fi
+    # Last run
+    UU_LOG="/var/log/unattended-upgrades/unattended-upgrades.log"
+    if [[ -f "$UU_LOG" ]]; then
+        LAST_UU=$(stat -c %y "$UU_LOG" 2>/dev/null | cut -d. -f1 || echo "unknown")
+        echo "  last_run: $LAST_UU"
+    fi
+else
+    echo "  installed: false"
+fi
+
+# ============================================================================
+# 3.18 SSL/TLS CERTIFICATE EXPIRY
+# ============================================================================
+echo ">>> Checking: SSL Certificates" >&2
+echo ""
+echo "=== SECTION: SSL_CERTS ==="
+echo "ssl_certificates:"
+
+# Check certificates on common ports (443, 8443, 8080)
+for port in 443 8443; do
+    if ss -tlnp | grep -q ":${port} " 2>/dev/null; then
+        CERT_INFO=$(echo | timeout 5 openssl s_client -connect 127.0.0.1:${port} -servername localhost 2>/dev/null | openssl x509 -noout -dates -subject 2>/dev/null)
+        if [[ -n "$CERT_INFO" ]]; then
+            CERT_EXPIRY=$(echo "$CERT_INFO" | grep "notAfter" | cut -d= -f2)
+            CERT_SUBJ=$(echo "$CERT_INFO" | grep "subject" | sed "s/subject=//" | tr -d " ")
+            echo "  - port: $port"
+            echo "    subject: $CERT_SUBJ"
+            echo "    expires: $CERT_EXPIRY"
+            # Check if expiring within 30 days
+            if command -v date &>/dev/null; then
+                EXPIRY_EPOCH=$(date -d "$CERT_EXPIRY" +%s 2>/dev/null || echo "0")
+                NOW_EPOCH=$(date +%s)
+                DAYS_LEFT=$(( (EXPIRY_EPOCH - NOW_EPOCH) / 86400 ))
+                echo "    days_remaining: $DAYS_LEFT"
+            fi
+        fi
+    fi
+done
+
+# Check Traefik/LetsEncrypt cert files if exist
+for CERT_DIR in /etc/letsencrypt/live /opt/traefik/certs; do
+    if [[ -d "$CERT_DIR" ]]; then
+        for cert in "$CERT_DIR"/*/fullchain.pem "$CERT_DIR"/*.crt; do
+            if [[ -f "$cert" ]]; then
+                CERT_EXPIRY=$(openssl x509 -in "$cert" -noout -enddate 2>/dev/null | cut -d= -f2)
+                CERT_CN=$(openssl x509 -in "$cert" -noout -subject 2>/dev/null | sed "s/.*CN = //" | head -1)
+                if [[ -n "$CERT_EXPIRY" ]]; then
+                    EXPIRY_EPOCH=$(date -d "$CERT_EXPIRY" +%s 2>/dev/null || echo "0")
+                    NOW_EPOCH=$(date +%s)
+                    DAYS_LEFT=$(( (EXPIRY_EPOCH - NOW_EPOCH) / 86400 ))
+                    echo "  - file: $cert"
+                    echo "    cn: ${CERT_CN:-unknown}"
+                    echo "    expires: $CERT_EXPIRY"
+                    echo "    days_remaining: $DAYS_LEFT"
+                fi
+            fi
+        done
+    fi
+done
+
+# ============================================================================
+# 3.19 DOCKER IMAGE AGE & SECURITY
+# ============================================================================
+echo ">>> Checking: Docker Security" >&2
+echo ""
+echo "=== SECTION: DOCKER_SECURITY ==="
+echo "docker_security:"
+
+if command -v docker &>/dev/null; then
+    # Image age check (flag images older than 90 days)
+    echo "  old_images:"
+    docker images --format "{{.Repository}}:{{.Tag}} {{.CreatedAt}}" 2>/dev/null | while read img created rest; do
+        if [[ "$img" != "<none>:<none>" && -n "$created" ]]; then
+            IMG_DATE=$(echo "$created" | cut -d" " -f1)
+            IMG_EPOCH=$(date -d "$IMG_DATE" +%s 2>/dev/null || echo "0")
+            NOW_EPOCH=$(date +%s)
+            AGE_DAYS=$(( (NOW_EPOCH - IMG_EPOCH) / 86400 ))
+            if [[ $AGE_DAYS -gt 90 ]]; then
+                echo "    - image: $img"
+                echo "      age_days: $AGE_DAYS"
+            fi
+        fi
+    done
+
+    # Containers running as root
+    echo "  containers_as_root:"
+    docker ps -q 2>/dev/null | while read cid; do
+        C_USER=$(docker inspect --format "{{.Config.User}}" "$cid" 2>/dev/null)
+        C_NAME=$(docker inspect --format "{{.Name}}" "$cid" 2>/dev/null | tr -d "/")
+        if [[ -z "$C_USER" || "$C_USER" == "root" || "$C_USER" == "0" ]]; then
+            echo "    - $C_NAME (user: ${C_USER:-root})"
+        fi
+    done
+
+    # Dangling images (waste / potential info leak)
+    DANGLING=$(docker images -f "dangling=true" -q 2>/dev/null | wc -l || echo "0")
+    echo "  dangling_images: $DANGLING"
+
+    # Containers with host network
+    echo "  host_network_containers:"
+    docker ps --format "{{.Names}}" --filter "network=host" 2>/dev/null | while read name; do
+        echo "    - $name"
+    done
+
+    # Privileged containers
+    echo "  privileged_containers:"
+    docker ps -q 2>/dev/null | while read cid; do
+        PRIV=$(docker inspect --format "{{.HostConfig.Privileged}}" "$cid" 2>/dev/null)
+        if [[ "$PRIV" == "true" ]]; then
+            C_NAME=$(docker inspect --format "{{.Name}}" "$cid" 2>/dev/null | tr -d "/")
+            echo "    - $C_NAME"
+        fi
+    done
+else
+    echo "  status: docker not available"
+fi
+
+# ============================================================================
+# 3.20 ZOMBIE / DEFUNCT PROCESSES
+# ============================================================================
+echo ">>> Checking: Zombie Processes" >&2
+echo ""
+echo "=== SECTION: ZOMBIES ==="
+echo "zombie_processes:"
+
+ZOMBIE_COUNT=$(ps aux | grep -c "[Z]" 2>/dev/null || echo "0")
+echo "  count: $ZOMBIE_COUNT"
+if [[ $ZOMBIE_COUNT -gt 0 ]]; then
+    echo "  list:"
+    ps aux | awk "\$8 ~ /Z/ {print \"    - pid: \" \$2 \", ppid: \" \$3 \", cmd: \" \$11}" | head -10
+fi
+
+# ============================================================================
+# 3.21 OPEN FILE DESCRIPTORS
+# ============================================================================
+echo ">>> Checking: File Descriptors" >&2
+echo ""
+echo "=== SECTION: FILE_DESCRIPTORS ==="
+echo "file_descriptors:"
+
+FD_MAX=$(cat /proc/sys/fs/file-max 2>/dev/null || echo "unknown")
+FD_USED=$(cat /proc/sys/fs/file-nr 2>/dev/null | awk "{print \$1}" || echo "unknown")
+echo "  max: $FD_MAX"
+echo "  used: $FD_USED"
+
+# Top processes by open FDs
+echo "  top_consumers:"
+for pid in $(ls /proc 2>/dev/null | grep -E "^[0-9]+$" | head -200); do
+    if [[ -d "/proc/$pid/fd" ]]; then
+        count=$(ls /proc/$pid/fd 2>/dev/null | wc -l)
+        name=$(cat /proc/$pid/comm 2>/dev/null || echo "?")
+        echo "$count $pid $name"
+    fi
+done 2>/dev/null | sort -rn | head -5 | while read cnt pid name; do
+    echo "    - process: $name (pid: $pid), open_fds: $cnt"
+done
+
+# ============================================================================
+# 3.22 DNS RESOLUTION TEST
+# ============================================================================
+echo ">>> Checking: DNS Resolution" >&2
+echo ""
+echo "=== SECTION: DNS ==="
+echo "dns_resolution:"
+
+# Test internal DNS
+for domain in google.com api.quantjourney.cloud data.quantjourney.cloud; do
+    RESOLVED=$(timeout 5 host "$domain" 2>/dev/null | head -1 || echo "FAILED")
+    if echo "$RESOLVED" | grep -q "has address"; then
+        echo "  - domain: $domain"
+        echo "    status: ok"
+        echo "    ip: $(echo "$RESOLVED" | awk "{print \$NF}")"
+    else
+        echo "  - domain: $domain"
+        echo "    status: FAILED"
+    fi
+done
+
+# Check /etc/resolv.conf
+echo "  nameservers:"
+grep "^nameserver" /etc/resolv.conf 2>/dev/null | awk "{print \"    - \" \$2}"
+
+# ============================================================================
+# 3.23 DISK I/O WAIT
+# ============================================================================
+echo ">>> Checking: Disk I/O Wait" >&2
+echo ""
+echo "=== SECTION: IO_WAIT ==="
+echo "io_wait:"
+
+# Get I/O wait from top (1 sample)
+IOWAIT=$(top -bn1 2>/dev/null | grep "Cpu" | head -1 | grep -oP "[0-9.]+(?=\s*wa)" || echo "unknown")
+echo "  cpu_iowait_pct: ${IOWAIT:-unknown}"
+
+# iostat if available
+if command -v iostat &>/dev/null; then
+    echo "  devices:"
+    iostat -dx 1 1 2>/dev/null | awk "NR>6 && \$1 != \"\" {print \"    - device: \" \$1 \", util_pct: \" \$NF \", await_ms: \" \$10}" | head -5
+fi
+
+# Check for high I/O wait processes
+echo "  high_io_processes:"
+iotop -bon1 2>/dev/null | head -5 | tail -3 | while read line; do
+    echo "    - $line"
+done 2>/dev/null || echo "    iotop not available"
+
+# ============================================================================
 # 4. SYSTEM INFORMATION
 # ============================================================================
+echo ">>> Checking: System Resources" >&2
 echo ""
 echo "=== SECTION: SYSTEM ==="
 
@@ -519,8 +821,8 @@ check_server() {
     log_info "Connecting to server: ${server} (${ssh_host})..."
     log_verbose "SSH command: ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new $ssh_host"
     
-    # Execute remote script
-    if printf '%s' "$REMOTE_CHECK_SCRIPT" | ssh -T -o ConnectTimeout=30 -o StrictHostKeyChecking=accept-new "$ssh_host" "bash" > "$output_file" 2>&1; then
+    # Execute remote script (stdout=data to file, stderr=progress to console)
+    if printf '%s' "$REMOTE_CHECK_SCRIPT" | ssh -T -o ConnectTimeout=30 -o StrictHostKeyChecking=accept-new "$ssh_host" "bash" > "$output_file"; then
         log_success "Server ${server} - check completed"
         
         # Verbose output - show what was checked
@@ -711,19 +1013,25 @@ EOF
             # Security
             local failed_ssh=$(grep "last_24h:" "$result_file" | cut -d: -f2 | tr -d ' ')
             
-            # Get tool installation status
-            local f2b_installed=$(sed -n '/^fail2ban:/,/^[a-z]/p' "$result_file" | grep "status:" | head -1 | cut -d: -f2 | tr -d ' ')
-            local ufw_installed=$(sed -n '/^ufw_details:/,/^[a-z]/p' "$result_file" | grep "status:" | head -1 | cut -d: -f2 | tr -d ' ')
+            # Get tool installation status - use service_running field (from systemctl)
+            local f2b_running=$(sed -n '/^fail2ban:/,/^[a-z]/p' "$result_file" | grep "service_running:" | cut -d: -f2 | tr -d ' ')
+            local ufw_running=$(sed -n '/^ufw_details:/,/^[a-z]/p' "$result_file" | grep "service_running:" | cut -d: -f2 | tr -d ' ')
+            local ufw_status_val=$(sed -n '/^ufw_details:/,/^[a-z]/p' "$result_file" | grep "^  status:" | cut -d: -f2 | tr -d ' ')
             local wg_installed=$(sed -n '/^wireguard:/,/^[a-z]/p' "$result_file" | grep "status:" | cut -d: -f2 | tr -d ' ')
             local auditd_installed=$(sed -n '/^auditd:/,/^[a-z]/p' "$result_file" | grep "status:" | cut -d: -f2 | tr -d ' ')
             local rkhunter_installed=$(sed -n '/^rootkit_scanner:/,/^[a-z]/p' "$result_file" | grep -E "rkhunter:|chkrootkit:" | head -1)
             
-            # Format statuses
-            local f2b_icon="NO" && [[ "$f2b_installed" == *"Number"* || "$f2b_installed" == *"Status"* ]] && f2b_icon="YES"
-            local ufw_icon="NO" && [[ "$ufw_installed" == "active" ]] && ufw_icon="YES"
-            local wg_icon="NO" && [[ "$wg_installed" == "active" ]] && wg_icon="YES"
-            local auditd_icon="NO" && [[ "$auditd_installed" == "running" ]] && auditd_icon="YES"
-            local rkhunter_icon="NO" && [[ -n "$rkhunter_installed" ]] && rkhunter_icon="YES"
+            # Format statuses - use service_running for reliable detection
+            local f2b_icon="NO"
+            [[ "$f2b_running" == "true" ]] && f2b_icon="YES"
+            local ufw_icon="NO"
+            [[ "$ufw_running" == "true" || "$ufw_status_val" == "active" ]] && ufw_icon="YES"
+            local wg_icon="NO"
+            [[ "$wg_installed" == "active" ]] && wg_icon="YES"
+            local auditd_icon="NO"
+            [[ "$auditd_installed" == "running" ]] && auditd_icon="YES"
+            local rkhunter_icon="NO"
+            [[ -n "$rkhunter_installed" ]] && rkhunter_icon="YES"
             
             cat << EOF
 ### Security Tools Installed
@@ -731,7 +1039,7 @@ EOF
 | Tool | Status | Notes |
 |------|--------|-------|
 | Fail2ban | ${f2b_icon} | $(if [[ "$f2b_icon" == "YES" ]]; then echo "SSH protection active"; else echo "NOT INSTALLED - install with: apt install fail2ban"; fi) |
-| UFW Firewall | ${ufw_icon} | $(if [[ "$ufw_icon" == "YES" ]]; then echo "Firewall active"; elif [[ "$ufw_installed" == "notinstalled" ]]; then echo "NOT INSTALLED"; else echo "INACTIVE - enable with: sudo ufw enable"; fi) |
+| UFW Firewall | ${ufw_icon} | $(if [[ "$ufw_icon" == "YES" ]]; then echo "Firewall active"; elif [[ "$ufw_status_val" == "notinstalled" ]]; then echo "NOT INSTALLED"; else echo "INACTIVE - enable with: sudo ufw enable"; fi) |
 | WireGuard | ${wg_icon} | $(if [[ "$wg_icon" == "YES" ]]; then echo "VPN active"; elif [[ "$wg_installed" == "installedbutnotactive" ]]; then echo "Installed but not active"; else echo "Not installed"; fi) |
 | Auditd | ${auditd_icon} | $(if [[ "$auditd_icon" == "YES" ]]; then echo "System auditing active"; elif [[ "$auditd_installed" == "installedbutnotrunning" ]]; then echo "Installed but not running"; else echo "NOT INSTALLED - install with: apt install auditd"; fi) |
 | Rootkit Scanner | ${rkhunter_icon} | $(if [[ "$rkhunter_icon" == "YES" ]]; then echo "rkhunter/chkrootkit installed"; else echo "Not installed - install with: apt install rkhunter"; fi) |
@@ -792,9 +1100,10 @@ EOF
             echo ""
             
             # UFW Firewall details
-            local ufw_status=$(sed -n '/^ufw_details:/,/^[a-z]/p' "$result_file" | grep "status:" | head -1 | cut -d: -f2 | tr -d ' ')
+            local ufw_status=$(sed -n '/^ufw_details:/,/^[a-z]/p' "$result_file" | grep "^  status:" | cut -d: -f2 | tr -d ' ')
+            local ufw_svc=$(sed -n '/^ufw_details:/,/^[a-z]/p' "$result_file" | grep "service_running:" | cut -d: -f2 | tr -d ' ')
             echo "**UFW Firewall:**"
-            if [[ "$ufw_status" == "active" ]]; then
+            if [[ "$ufw_status" == "active" || "$ufw_svc" == "true" ]]; then
                 local ufw_in=$(sed -n '/^ufw_details:/,/^[a-z]/p' "$result_file" | grep "default_incoming:" | cut -d: -f2 | tr -d ' ')
                 local ufw_out=$(sed -n '/^ufw_details:/,/^[a-z]/p' "$result_file" | grep "default_outgoing:" | cut -d: -f2 | tr -d ' ')
                 echo "- Status: Active"
@@ -866,6 +1175,156 @@ EOF
                 local docker_total=$(grep "total_containers:" "$result_file" | cut -d: -f2 | tr -d ' ')
                 echo "**Docker:** ${docker_running}/${docker_total} containers running"
                 echo ""
+            fi
+            
+            # ---- NEW HARDENING SECTIONS ----
+            
+            # SSH Hardening
+            if grep -q "^ssh_hardening:" "$result_file"; then
+                echo "### SSH Hardening"
+                echo ""
+                # Safe value reader — disables strict mode for parsing
+                _ssh_val() {
+                    local val
+                    val=$(set +euo pipefail; sed -n '/^ssh_hardening:/,/^[a-z]/p' "$1" 2>/dev/null | grep "$2" 2>/dev/null | cut -d: -f2 2>/dev/null | tr -d ' ' 2>/dev/null) || true
+                    # Clean "notset" (from remote "not set" after tr -d ' ')
+                    if [[ -z "$val" || "$val" == "notset" ]]; then echo ""; else echo "$val"; fi
+                }
+                local ssh_root; ssh_root=$(_ssh_val "$result_file" "permit_root_login:")
+                local ssh_pass; ssh_pass=$(_ssh_val "$result_file" "password_auth:")
+                local ssh_pubkey; ssh_pubkey=$(_ssh_val "$result_file" "pubkey_auth:")
+                local ssh_max; ssh_max=$(_ssh_val "$result_file" "max_auth_tries:")
+                local ssh_empty; ssh_empty=$(_ssh_val "$result_file" "permit_empty_passwords:")
+                local ssh_x11; ssh_x11=$(_ssh_val "$result_file" "x11_forwarding:")
+
+                local _sr="${ssh_root:-}" _sp="${ssh_pass:-}" _spk="${ssh_pubkey:-}" _sm="${ssh_max:-}" _se="${ssh_empty:-}" _sx="${ssh_x11:-}"
+
+                echo "| Setting | Value | Recommendation |"
+                echo "|---------|-------|----------------|"
+                echo "| PermitRootLogin | ${_sr:-N/A} | $(if [[ "$_sr" == "no" || "$_sr" == "prohibit-password" ]]; then echo "✅ OK"; else echo "⚠️ Set to no or prohibit-password"; fi) |"
+                echo "| PasswordAuthentication | ${_sp:-N/A} | $(if [[ "$_sp" == "no" ]]; then echo "✅ OK"; else echo "⚠️ Set to no (use key auth)"; fi) |"
+                echo "| PubkeyAuthentication | ${_spk:-N/A} | $(if [[ "$_spk" == "yes" || -z "$_spk" ]]; then echo "✅ OK"; else echo "⚠️ Set to yes"; fi) |"
+                echo "| MaxAuthTries | ${_sm:-N/A} | $(if [[ -n "$_sm" && "$_sm" =~ ^[0-9]+$ && $_sm -le 4 ]]; then echo "✅ OK"; else echo "⚠️ Should be 4 or less"; fi) |"
+                echo "| PermitEmptyPasswords | ${_se:-N/A} | $(if [[ "$_se" == "no" || -z "$_se" ]]; then echo "✅ OK"; else echo "🔴 CRITICAL"; fi) |"
+                echo "| X11Forwarding | ${_sx:-N/A} | $(if [[ "$_sx" == "no" ]]; then echo "✅ OK"; else echo "⚠️ Set to no on servers"; fi) |"
+                echo ""
+
+                if [[ "$_sp" == "yes" ]]; then
+                    actions_needed+=("[SSH] ${server}: Password authentication is enabled - consider disabling")
+                fi
+                if [[ "$_sr" == "yes" ]]; then
+                    actions_needed+=("[SSH] ${server}: Root login permitted - high risk")
+                fi
+            fi
+
+            # Unattended-Upgrades
+            if grep -q "^unattended_upgrades:" "$result_file"; then
+                local uu_installed=$(sed -n '/^unattended_upgrades:/,/^[a-z]/p' "$result_file" | grep "installed:" | cut -d: -f2 | tr -d ' ')
+                local uu_enabled=$(sed -n '/^unattended_upgrades:/,/^[a-z]/p' "$result_file" | grep "enabled:" | cut -d: -f2 | tr -d ' ')
+                echo "**Auto-Updates:** $(if [[ "$uu_installed" == "true" ]]; then echo "Installed"; else echo "NOT INSTALLED"; fi) — $(if [[ "$uu_enabled" == "true" ]]; then echo "Enabled ✅"; else echo "⚠️ Not enabled"; fi)"
+                echo ""
+                if [[ "$uu_installed" != "true" ]]; then
+                    actions_needed+=("[AUTO-UPDATE] ${server}: unattended-upgrades not installed")
+                elif [[ "$uu_enabled" != "true" ]]; then
+                    actions_needed+=("[AUTO-UPDATE] ${server}: unattended-upgrades not enabled")
+                fi
+            fi
+
+            # SSL Certificates
+            if grep -q "^ssl_certificates:" "$result_file"; then
+                local ssl_data=$(sed -n '/^ssl_certificates:/,/^[a-z_]*[^:]*:/p' "$result_file" | grep -c "port:\|file:")
+                if [[ ${ssl_data:-0} -gt 0 ]]; then
+                    echo "### SSL Certificates"
+                    echo ""
+                    echo "| Port/File | CN | Expires | Days Left |"
+                    echo "|-----------|-------|---------|-----------|"
+                    # Parse port-based certs
+                    sed -n '/^ssl_certificates:/,/^[a-z_]*[^:]*:/p' "$result_file" | while IFS= read -r line; do
+                        if echo "$line" | grep -q "port:"; then port=$(echo "$line" | cut -d: -f2 | tr -d ' '); fi
+                        if echo "$line" | grep -q "subject:"; then subj=$(echo "$line" | cut -d: -f2- | tr -d ' '); fi
+                        if echo "$line" | grep -q "days_remaining:"; then
+                            days=$(echo "$line" | cut -d: -f2 | tr -d ' ')
+                            status="✅"
+                            [[ ${days:-0} -lt 30 ]] && status="⚠️"
+                            [[ ${days:-0} -lt 7 ]] && status="🔴"
+                            echo "| :${port:-?} | ${subj:-?} | — | ${days} ${status} |"
+                        fi
+                    done
+                    echo ""
+                fi
+            fi
+
+            # Docker Security
+            if grep -q "^docker_security:" "$result_file"; then
+                local old_images=$(sed -n '/^docker_security:/,/^[a-z_]*[^:]*:/p' "$result_file" | grep -c "image:")
+                local root_containers=$(sed -n '/^docker_security:/,/^[a-z_]*[^:]*:/p' "$result_file" | sed -n '/containers_as_root/,/dangling/p' | grep -c "    -")
+                local dangling=$(sed -n '/^docker_security:/,/^[a-z_]*[^:]*:/p' "$result_file" | grep "dangling_images:" | cut -d: -f2 | tr -d ' ')
+                local priv_containers=$(sed -n '/^docker_security:/,/^[a-z_]*[^:]*:/p' "$result_file" | sed -n '/privileged_containers/,/^[a-z]/p' | grep -c "    -")
+                
+                if [[ ${old_images:-0} -gt 0 || ${root_containers:-0} -gt 0 || ${dangling:-0} -gt 0 || ${priv_containers:-0} -gt 0 ]]; then
+                    echo "### Docker Security"
+                    echo ""
+                    echo "| Check | Count | Status |"
+                    echo "|-------|-------|--------|"
+                    echo "| Old images (>90d) | ${old_images:-0} | $(if [[ ${old_images:-0} -gt 0 ]]; then echo "⚠️"; else echo "✅"; fi) |"
+                    echo "| Root containers | ${root_containers:-0} | $(if [[ ${root_containers:-0} -gt 0 ]]; then echo "⚠️"; else echo "✅"; fi) |"
+                    echo "| Dangling images | ${dangling:-0} | $(if [[ ${dangling:-0} -gt 3 ]]; then echo "⚠️"; else echo "✅"; fi) |"
+                    echo "| Privileged | ${priv_containers:-0} | $(if [[ ${priv_containers:-0} -gt 0 ]]; then echo "🔴"; else echo "✅"; fi) |"
+                    echo ""
+                    if [[ ${priv_containers:-0} -gt 0 ]]; then
+                        actions_needed+=("[DOCKER] ${server}: ${priv_containers} privileged container(s) detected")
+                    fi
+                fi
+            fi
+
+            # Zombies
+            if grep -q "^zombie_processes:" "$result_file"; then
+                local zombies=$(sed -n '/^zombie_processes:/,/^[a-z]/p' "$result_file" | grep "count:" | cut -d: -f2 | tr -d ' ')
+                if [[ ${zombies:-0} -gt 0 ]]; then
+                    echo "**Zombie processes:** ${zombies} ⚠️"
+                    echo ""
+                    actions_needed+=("[ZOMBIE] ${server}: ${zombies} zombie processes detected")
+                fi
+            fi
+
+            # File Descriptors
+            if grep -q "^file_descriptors:" "$result_file"; then
+                local fd_used=$(sed -n '/^file_descriptors:/,/^[a-z]/p' "$result_file" | grep "used:" | cut -d: -f2 | tr -d ' ')
+                local fd_max=$(sed -n '/^file_descriptors:/,/^[a-z]/p' "$result_file" | grep "max:" | cut -d: -f2 | tr -d ' ')
+                if [[ -n "$fd_used" && -n "$fd_max" && "$fd_used" != "unknown" && "$fd_max" != "unknown" ]]; then
+                    local fd_pct=$((fd_used * 100 / fd_max))
+                    if [[ $fd_pct -gt 80 ]]; then
+                        echo "**File descriptors:** ${fd_used}/${fd_max} (${fd_pct}%) ⚠️"
+                        echo ""
+                        actions_needed+=("[FD] ${server}: File descriptors at ${fd_pct}%")
+                    fi
+                fi
+            fi
+
+            # DNS
+            if grep -q "^dns_resolution:" "$result_file"; then
+                local dns_fail=$(sed -n '/^dns_resolution:/,/^[a-z_]*[^:]*:/p' "$result_file" | grep "status: FAILED" | wc -l)
+                if [[ ${dns_fail:-0} -gt 0 ]]; then
+                    echo "**DNS:** ${dns_fail} resolution failure(s) ⚠️"
+                    sed -n '/^dns_resolution:/,/^[a-z_]*[^:]*:/p' "$result_file" | grep -B1 "FAILED" | grep "domain:" | while read line; do
+                        echo "  - $line"
+                    done
+                    echo ""
+                    actions_needed+=("[DNS] ${server}: DNS resolution failures detected")
+                fi
+            fi
+
+            # I/O Wait
+            if grep -q "^io_wait:" "$result_file"; then
+                local iowait=$(sed -n '/^io_wait:/,/^[a-z]/p' "$result_file" | grep "cpu_iowait_pct:" | cut -d: -f2 | tr -d ' ')
+                if [[ -n "$iowait" && "$iowait" != "unknown" ]]; then
+                    local iowait_int=${iowait%.*}
+                    if [[ ${iowait_int:-0} -gt 20 ]]; then
+                        echo "**I/O Wait:** ${iowait}% ⚠️ (high disk latency)"
+                        echo ""
+                        actions_needed+=("[IO] ${server}: High I/O wait at ${iowait}%")
+                    fi
+                fi
             fi
             
         else
@@ -953,20 +1412,27 @@ main() {
     declare -a results
     
     if [[ "$PARALLEL" == "true" ]]; then
-        log_info "Parallel mode - checking all servers simultaneously..."
+        log_info "Parallel mode — checking all servers simultaneously..."
         
-        # Run all in background
+        # Each background job writes its result file path to a collector file
         declare -A pids
+        declare -A result_collectors
         for server in "${SERVERS[@]}"; do
-            check_server "$server" &
+            local collector=$(mktemp)
+            result_collectors[$server]="$collector"
+            ( check_server "$server" > "$collector" ) &
             pids[$server]=$!
         done
         
-        # Wait for all
+        # Wait for all and collect results
         for server in "${SERVERS[@]}"; do
-            wait ${pids[$server]}
-            result=$(check_server "$server")
-            results+=("$result")
+            wait "${pids[$server]}" 2>/dev/null || true
+            local result_path
+            result_path=$(cat "${result_collectors[$server]}" 2>/dev/null | tail -1)
+            if [[ -n "$result_path" && -f "$result_path" ]]; then
+                results+=("$result_path")
+            fi
+            rm -f "${result_collectors[$server]}"
         done
     else
         for server in "${SERVERS[@]}"; do
