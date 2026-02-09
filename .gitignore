@@ -7,6 +7,8 @@ _shared/
 __pycache__/
 *.pyc
 
+# Security reports — NEVER commit (contain server vulnerability data)
 reports/
-reports
-reports/*
+
+# OS
+.DS_Store
