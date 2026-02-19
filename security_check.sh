@@ -27,6 +27,7 @@ TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 REPORT_FILE=""
 VERBOSE=false
 PARALLEL=true
+NOTIFY=false
 
 # Colors
 RED='\033[0;31m'
@@ -92,6 +93,7 @@ Options:
   -r, --report PATH          Path to save the report
   -v, --verbose              Verbose mode
   -p, --parallel             Check servers in parallel
+  -n, --notify               Send Telegram/Email alerts for critical issues
   -h, --help                 Show this help
 
 Available servers:
@@ -137,6 +139,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -p|--parallel)
             PARALLEL=true
+            shift
+            ;;
+        -n|--notify)
+            NOTIFY=true
             shift
             ;;
         -h|--help)
@@ -1464,6 +1470,18 @@ main() {
     
     echo ""
     log_info "Full report: $REPORT_FILE"
+    
+    # Send notifications if enabled
+    if [[ "$NOTIFY" == "true" ]]; then
+        local script_dir
+        script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        if [[ -x "${script_dir}/notify.sh" ]]; then
+            log_info "Checking for critical issues to notify..."
+            "${script_dir}/notify.sh" --report "$REPORT_FILE" || true
+        else
+            log_warning "notify.sh not found - skipping notifications"
+        fi
+    fi
     
     # Cleanup
     for result in "${results[@]}"; do

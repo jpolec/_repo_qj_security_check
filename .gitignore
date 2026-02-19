@@ -10,5 +10,11 @@ __pycache__/
 # Security reports — NEVER commit (contain server vulnerability data)
 reports/
 
+# Logs
+logs/
+
+# Configuration (contains tokens/secrets)
+config.env
+
 # OS
 .DS_Store
